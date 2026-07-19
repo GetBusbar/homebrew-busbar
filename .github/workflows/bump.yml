@@ -1,0 +1,63 @@
+name: bump-formula
+on:
+  schedule:
+    - cron: "23 6 * * *"   # daily; off the top-of-hour
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bump formula to the latest upstream release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: MattJackson/busbarAI
+        run: |
+          set -euo pipefail
+          latest="$(gh release view --repo "$UPSTREAM" --json tagName -q .tagName)"   # e.g. v1.4.1
+          ver="${latest#v}"
+          cur="$(grep -E '^\s*version "' Formula/busbar.rb | head -1 | sed -E 's/.*version "([^"]+)".*/\1/')"
+          echo "current=$cur latest=$ver"
+          if [ "$ver" = "$cur" ]; then echo "already current"; exit 0; fi
+
+          declare -A ASSET=(
+            [apple_arm]="busbar-aarch64-apple-darwin.tar.gz"
+            [apple_intel]="busbar-x86_64-apple-darwin.tar.gz"
+            [linux_arm]="busbar-aarch64-unknown-linux-gnu.tar.gz"
+            [linux_intel]="busbar-x86_64-unknown-linux-gnu.tar.gz"
+          )
+          tmp="$(mktemp -d)"
+          for k in "${!ASSET[@]}"; do
+            gh release download "$latest" --repo "$UPSTREAM" --pattern "${ASSET[$k]}" --dir "$tmp"
+            printf -v "sha_$k" '%s' "$(shasum -a 256 "$tmp/${ASSET[$k]}" | awk '{print $1}')"
+          done
+
+          # version line
+          sed -i -E "s/^(\s*version \")[^\"]+(\")/\1${ver}\2/" Formula/busbar.rb
+          # each sha256 line (order in the file: apple_arm, apple_intel, linux_arm, linux_intel)
+          python3 - "$sha_apple_arm" "$sha_apple_intel" "$sha_linux_arm" "$sha_linux_intel" <<'PY'
+          import re, sys
+          shas = sys.argv[1:5]
+          p = "Formula/busbar.rb"
+          s = open(p).read()
+          i = 0
+          def repl(m):
+              global i
+              out = f'{m.group(1)}{shas[i]}{m.group(2)}'
+              i += 1
+              return out
+          s = re.sub(r'(sha256 ")[0-9a-f]{64}(")', repl, s)
+          open(p, "w").write(s)
+          assert i == 4, f"expected 4 sha256 lines, replaced {i}"
+          PY
+
+          if git diff --quiet; then echo "no change"; exit 0; fi
+          git config user.name "busbar-bot"
+          git config user.email "bot@getbusbar.com"
+          git add Formula/busbar.rb
+          git commit -m "busbar ${ver}: bump formula + checksums"
+          git push
