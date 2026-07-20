@@ -1,8 +1,15 @@
 name: bump-formula
+
+# Keeps both formulae current with zero human touch. Daily (self-healing — a missed run
+# just catches up the next day) and on-demand. For each formula: read the upstream's latest
+# release, and if it's newer than the pinned version, download the assets, recompute the
+# sha256s, rewrite the formula, and commit. Idempotent: no new release => no-op.
 on:
   schedule:
-    - cron: "23 6 * * *"   # daily; off the top-of-hour
+    - cron: "23 6 * * *"
   workflow_dispatch:
+  repository_dispatch:
+    types: [upstream-release]   # optional instant trigger from a core release (needs a PAT)
 
 permissions:
   contents: write
@@ -12,52 +19,48 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Bump formula to the latest upstream release
+
+      # busbar (gateway): assets busbar-<target>.tar.gz, 4 arches.
+      - name: Bump busbar
         env:
           GH_TOKEN: ${{ github.token }}
-          UPSTREAM: GetBusbar/busbar
         run: |
           set -euo pipefail
-          latest="$(gh release view --repo "$UPSTREAM" --json tagName -q .tagName)"   # e.g. v1.4.1
+          UPSTREAM=GetBusbar/busbar; FORMULA=Formula/busbar.rb
+          latest="$(gh release view --repo "$UPSTREAM" --json tagName -q .tagName)"; ver="${latest#v}"
+          cur="$(grep -E '^\s*version "' "$FORMULA" | head -1 | sed -E 's/.*version "([^"]+)".*/\1/')"
+          echo "busbar current=$cur latest=$ver"
+          if [ "$ver" = "$cur" ]; then echo "busbar already current"; exit 0; fi
+          declare -a NAMES=(busbar-aarch64-apple-darwin.tar.gz busbar-x86_64-apple-darwin.tar.gz busbar-aarch64-unknown-linux-gnu.tar.gz busbar-x86_64-unknown-linux-gnu.tar.gz)
+          tmp="$(mktemp -d)"; shas=()
+          for n in "${NAMES[@]}"; do gh release download "$latest" --repo "$UPSTREAM" --pattern "$n" --dir "$tmp"; shas+=("$(shasum -a 256 "$tmp/$n" | awk '{print $1}')"); done
+          sed -i -E "s/^(\s*version \")[^\"]+(\")/\1${ver}\2/" "$FORMULA"
+          python3 .github/scripts/set_shas.py "$FORMULA" "${shas[@]}"
+
+      # busbar-admin (CLI): assets busbar-admin-v<ver>-<target>.tar.gz, 3 arches (no linux-arm).
+      - name: Bump busbar-admin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          UPSTREAM=GetBusbar/busbar-admin; FORMULA=Formula/busbar-admin.rb
+          [ -f "$FORMULA" ] || { echo "no busbar-admin formula yet"; exit 0; }
+          latest="$(gh release view --repo "$UPSTREAM" --json tagName -q .tagName 2>/dev/null || echo '')"
+          [ -n "$latest" ] || { echo "busbar-admin has no releases yet"; exit 0; }
           ver="${latest#v}"
-          cur="$(grep -E '^\s*version "' Formula/busbar.rb | head -1 | sed -E 's/.*version "([^"]+)".*/\1/')"
-          echo "current=$cur latest=$ver"
-          if [ "$ver" = "$cur" ]; then echo "already current"; exit 0; fi
+          cur="$(grep -E '^\s*version "' "$FORMULA" | head -1 | sed -E 's/.*version "([^"]+)".*/\1/')"
+          echo "busbar-admin current=$cur latest=$ver"
+          if [ "$ver" = "$cur" ]; then echo "busbar-admin already current"; exit 0; fi
+          declare -a NAMES=("busbar-admin-v${ver}-aarch64-apple-darwin.tar.gz" "busbar-admin-v${ver}-x86_64-apple-darwin.tar.gz" "busbar-admin-v${ver}-x86_64-unknown-linux-gnu.tar.gz")
+          tmp="$(mktemp -d)"; shas=()
+          for n in "${NAMES[@]}"; do gh release download "$latest" --repo "$UPSTREAM" --pattern "$n" --dir "$tmp"; shas+=("$(shasum -a 256 "$tmp/$n" | awk '{print $1}')"); done
+          sed -i -E "s/^(\s*version \")[^\"]+(\")/\1${ver}\2/" "$FORMULA"
+          python3 .github/scripts/set_shas.py "$FORMULA" "${shas[@]}"
 
-          declare -A ASSET=(
-            [apple_arm]="busbar-aarch64-apple-darwin.tar.gz"
-            [apple_intel]="busbar-x86_64-apple-darwin.tar.gz"
-            [linux_arm]="busbar-aarch64-unknown-linux-gnu.tar.gz"
-            [linux_intel]="busbar-x86_64-unknown-linux-gnu.tar.gz"
-          )
-          tmp="$(mktemp -d)"
-          for k in "${!ASSET[@]}"; do
-            gh release download "$latest" --repo "$UPSTREAM" --pattern "${ASSET[$k]}" --dir "$tmp"
-            printf -v "sha_$k" '%s' "$(shasum -a 256 "$tmp/${ASSET[$k]}" | awk '{print $1}')"
-          done
-
-          # version line
-          sed -i -E "s/^(\s*version \")[^\"]+(\")/\1${ver}\2/" Formula/busbar.rb
-          # each sha256 line (order in the file: apple_arm, apple_intel, linux_arm, linux_intel)
-          python3 - "$sha_apple_arm" "$sha_apple_intel" "$sha_linux_arm" "$sha_linux_intel" <<'PY'
-          import re, sys
-          shas = sys.argv[1:5]
-          p = "Formula/busbar.rb"
-          s = open(p).read()
-          i = 0
-          def repl(m):
-              global i
-              out = f'{m.group(1)}{shas[i]}{m.group(2)}'
-              i += 1
-              return out
-          s = re.sub(r'(sha256 ")[0-9a-f]{64}(")', repl, s)
-          open(p, "w").write(s)
-          assert i == 4, f"expected 4 sha256 lines, replaced {i}"
-          PY
-
-          if git diff --quiet; then echo "no change"; exit 0; fi
-          git config user.name "busbar-bot"
-          git config user.email "bot@getbusbar.com"
-          git add Formula/busbar.rb
-          git commit -m "busbar ${ver}: bump formula + checksums"
+      - name: Commit any changes
+        run: |
+          if git diff --quiet; then echo "no changes"; exit 0; fi
+          git config user.name "busbar-bot"; git config user.email "bot@getbusbar.com"
+          git add Formula/
+          git commit -m "auto-bump formulae to latest upstream releases"
           git push
