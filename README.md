@@ -12,10 +12,10 @@ busbar --version
 
 > On Homebrew 6 and newer, a third-party tap must be trusted once before its formulae will load (`brew trust GetBusbar/busbar`). Older Homebrew versions skip this step.
 
-The formula installs the prebuilt, release-signed binary from [GitHub Releases](https://github.com/MattJackson/busbarAI/releases) (macOS and Linux, Apple Silicon + Intel). To verify provenance independently:
+The formula installs the prebuilt, release-signed binary from [GitHub Releases](https://github.com/GetBusbar/busbar/releases) (macOS and Linux, Apple Silicon + Intel). To verify provenance independently:
 
 ```sh
-gh attestation verify "$(brew --prefix)/bin/busbar" --repo MattJackson/busbarAI
+gh attestation verify "$(brew --prefix)/bin/busbar" --repo GetBusbar/busbar
 ```
 
 ## Upgrading

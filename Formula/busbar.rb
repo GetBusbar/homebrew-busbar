@@ -7,7 +7,7 @@ class Busbar < Formula
   version "1.4.0"
   license "Apache-2.0"
 
-  BASE = "https://github.com/MattJackson/busbarAI/releases/download/v#{version}".freeze
+  BASE = "https://github.com/GetBusbar/busbar/releases/download/v#{version}".freeze
 
   on_macos do
     on_arm do
