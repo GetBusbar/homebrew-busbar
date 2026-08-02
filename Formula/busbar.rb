@@ -12,22 +12,22 @@ class Busbar < Formula
   on_macos do
     on_arm do
       url "#{BASE}/busbar-aarch64-apple-darwin.tar.gz"
-      sha256 "d6e5ecbbe64e2e96c4be6be12dfd003a0f96dfc6ca185e4161eb3e4027daef60"
+      sha256 "2b0e980555216f0a65d6ec50a947b2b24f6d95b4e58f4bd8db6f0eabe84a7769"
     end
     on_intel do
       url "#{BASE}/busbar-x86_64-apple-darwin.tar.gz"
-      sha256 "74555d62ef67e7d0f5662259943a63caeb21e32cd9ccd0d47d67243f2073f568"
+      sha256 "c54a8b5f742ed3092126042fc5e10256477ce6eca005013335ced768e29dba0d"
     end
   end
 
   on_linux do
     on_arm do
       url "#{BASE}/busbar-aarch64-unknown-linux-gnu.tar.gz"
-      sha256 "073c2e5481a36237dfb612804432b72cfbf1b23f60ef5877b6794f31ad58ca11"
+      sha256 "9bc246991e604fbf635ab34b95c3ad6afe323fb00fe4562d1dbc8f82117d5498"
     end
     on_intel do
       url "#{BASE}/busbar-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "08bc4407b95ae4dc71bb2c9108fa3d66444805be9cf81ef4f16de0df5669d744"
+      sha256 "c07c7a7cc315342b568876ca8152f4491bda6df12c096828ccd7797c71715a8e"
     end
   end
 
