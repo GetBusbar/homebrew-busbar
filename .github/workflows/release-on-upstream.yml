@@ -1,0 +1,119 @@
+# Publish the new busbar formula when core ships.
+#
+# On an upstream-release dispatch (or daily self-heal cron, or a manual run) this re-pins
+# Formula/busbar.rb to the new busbar version, recomputes the release asset sha256s, and
+# pushes main via RELEASE_DISPATCH_TOKEN (bypass-capable; a plain GITHUB_TOKEN push is
+# rejected by branch protection). A homebrew tap publishes by serving the formula from its
+# default branch, so the push to main IS the publish — no tag or downstream workflow. No
+# plain `push:` trigger here, so merging this file cannot itself publish. Cron only acts
+# when core's latest release is newer than the committed formula version, so an idle day is
+# a no-op; every path is idempotent (no-op if already at that version).
+name: release-on-upstream
+
+on:
+  repository_dispatch:
+    types: [upstream-release]
+  schedule:
+    - cron: "29 7 * * *" # daily; minute staggered per repo so the fleet's crons don't all fire at once
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  # Serialize overlapping dispatch + cron so we never double-publish; never cancel mid-push.
+  group: release-on-upstream-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main (bypass-capable token)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+          token: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "busbar-bot"
+          git config user.email "bot@getbusbar.com"
+
+      - name: Resolve target busbar version and whether to act
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
+          DISPATCH_VERSION: ${{ github.event.client_payload.version }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          FORMULA=Formula/busbar.rb
+          committed="$(grep -E '^\s*version "' "$FORMULA" | head -1 | sed -E 's/.*version "([^"]+)".*/\1/')"
+          echo "committed formula version: ${committed:-<none>}"
+          target=""
+          act=no
+          case "$EVENT_NAME" in
+            repository_dispatch)
+              target="${DISPATCH_VERSION#v}"
+              act=yes
+              ;;
+            workflow_dispatch)
+              tag="$(gh api repos/GetBusbar/busbar/releases/latest --jq .tag_name 2>/dev/null || true)"
+              target="${tag#v}"
+              act=yes
+              ;;
+            schedule)
+              tag="$(gh api repos/GetBusbar/busbar/releases/latest --jq .tag_name 2>/dev/null || true)"
+              target="${tag#v}"
+              if [ -n "$target" ] && [ "$target" != "$committed" ] \
+                 && [ "$(printf '%s\n%s\n' "$committed" "$target" | sort -V | tail -1)" = "$target" ]; then
+                act=yes
+                echo "::notice::busbar advanced (${committed:-none} -> ${target}) -> publishing"
+              else
+                echo "::notice::no newer busbar release (committed=${committed:-none}, latest=${target:-none}) -> nothing to do"
+              fi
+              ;;
+          esac
+          if [ "$act" = yes ] && [ -z "$target" ]; then
+            echo "::error::could not resolve a target busbar version"
+            exit 1
+          fi
+          {
+            echo "act=$act"
+            echo "target=$target"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Re-pin Formula/busbar.rb version + sha256s to target
+        if: steps.resolve.outputs.act == 'yes'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_DISPATCH_TOKEN }}
+          TARGET: ${{ steps.resolve.outputs.target }}
+        run: |
+          set -euo pipefail
+          FORMULA=Formula/busbar.rb
+          cur="$(grep -E '^\s*version "' "$FORMULA" | head -1 | sed -E 's/.*version "([^"]+)".*/\1/')"
+          if [ "$TARGET" = "$cur" ]; then echo "::notice::formula already at ${TARGET} — idempotent no-op"; exit 0; fi
+          declare -a NAMES=(busbar-aarch64-apple-darwin.tar.gz busbar-x86_64-apple-darwin.tar.gz busbar-aarch64-unknown-linux-gnu.tar.gz busbar-x86_64-unknown-linux-gnu.tar.gz)
+          tmp="$(mktemp -d)"; shas=()
+          for n in "${NAMES[@]}"; do
+            gh release download "v${TARGET}" --repo GetBusbar/busbar --pattern "$n" --dir "$tmp"
+            shas+=("$(shasum -a 256 "$tmp/$n" | awk '{print $1}')")
+          done
+          sed -i -E "s/^(\s*version \")[^\"]+(\")/\1${TARGET}\2/" "$FORMULA"
+          python3 .github/scripts/set_shas.py "$FORMULA" "${shas[@]}"
+
+      - name: Commit and push (publishes the tap)
+        if: steps.resolve.outputs.act == 'yes'
+        env:
+          TARGET: ${{ steps.resolve.outputs.target }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "::notice::formula already at busbar ${TARGET} — idempotent no-op"
+            exit 0
+          fi
+          git add Formula/busbar.rb
+          git commit -m "release: publish busbar ${TARGET} (formula version + sha256s)"
+          git push origin HEAD:main
