@@ -4,7 +4,7 @@
 class Busbar < Formula
   desc "Single-binary LLM gateway — one API in front of every model and provider"
   homepage "https://getbusbar.com"
-  version "1.5.1"
+  version "1.5.2"
   license "Apache-2.0"
 
   BASE = "https://github.com/GetBusbar/busbar/releases/download/v#{version}".freeze
@@ -12,22 +12,22 @@ class Busbar < Formula
   on_macos do
     on_arm do
       url "#{BASE}/busbar-aarch64-apple-darwin.tar.gz"
-      sha256 "213290717a37bff6725493e037016c861e9a862426258d9bd777338a055d5103"
+      sha256 "4885fc1164f389a099857d77da2f20989b2866a40e94145a90a4716605e1a506"
     end
     on_intel do
       url "#{BASE}/busbar-x86_64-apple-darwin.tar.gz"
-      sha256 "d463dc25a38ed7da24d75b12dbc4de915dffb64a0f27346aef89304f6ea08ae7"
+      sha256 "1cf0e6ef5afd9285a58ebd3e8d36e48f01242b8173666b252a73ef5da0883264"
     end
   end
 
   on_linux do
     on_arm do
       url "#{BASE}/busbar-aarch64-unknown-linux-gnu.tar.gz"
-      sha256 "5571e46ba806e50c6e1d43d05e6892e59dede8b998c8d6469cbf5d0c00e3389e"
+      sha256 "f249fef7f853630b52a9bdbee825ad1f84312e2e95025a95b33e9ecfb0b9e2e0"
     end
     on_intel do
       url "#{BASE}/busbar-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "66d49b91f7c373db917f3d5d4ebab2d0f30e38a50b60d54d02a1d2f95d092f4b"
+      sha256 "e4434c5693387d4b10a06941b16eb419f9050a4e69f9e6ea2a857e284f79f426"
     end
   end
 
