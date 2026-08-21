@@ -4,7 +4,7 @@
 class BusbarAdmin < Formula
   desc "CLI for the Busbar gateway admin API (info, keys, hooks, config)"
   homepage "https://getbusbar.com/docs/sdks/#busbar-admin-cli"
-  version "0.2.3"
+  version "0.2.4"
   license "Apache-2.0"
 
   BASE = "https://github.com/GetBusbar/busbar-admin/releases/download/v#{version}".freeze
@@ -12,18 +12,18 @@ class BusbarAdmin < Formula
   on_macos do
     on_arm do
       url "#{BASE}/busbar-admin-v#{version}-aarch64-apple-darwin.tar.gz"
-      sha256 "d7457b2898ab288e88c7982e65864ed7a4b7a062f7c6af14c2659df392c3148f"
+      sha256 "f317563423b02131ddeeccd3cfec5ad6b9d980ae87851dc1d42ffe034da816a5"
     end
     on_intel do
       url "#{BASE}/busbar-admin-v#{version}-x86_64-apple-darwin.tar.gz"
-      sha256 "acee9faa7d7c414fb9acc8e35c229db9b36429b6fbe6165c29ed8debe45c1516"
+      sha256 "d2809dbfd87324913c42956232fa664c3a87d3bb527afba7e837c2645ede2015"
     end
   end
 
   on_linux do
     on_intel do
       url "#{BASE}/busbar-admin-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "a9da607a21b291549bdbc19af5f445cf3937f2a5b9c70ccd81695dd8ca425957"
+      sha256 "75d56273c004b052f68f8e21b52fa265a859316acc56d2a2b486c355df7e0941"
     end
   end
 
