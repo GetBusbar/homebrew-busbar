@@ -1,0 +1,68 @@
+# Replaces .github/workflows/bump.yml (dev; daily bump of both formulae) and release-on-upstream.yml
+# (main) of GetBusbar/homebrew-busbar. GitHub Actions is retired.
+#
+# Named `formula-publish` on purpose: no such branch exists, so it never judges a PR. It carries
+# `to: main` scheduled work: a tap publishes by serving Formula/ from main, so the push IS the
+# publish. Its one `move` check (formulae-present) exists only because the file checker requires
+# a move check.
+#
+#   formula-bump  schedule daily + upstream GetBusbar/busbar@v* + manual: for busbar (core) and
+#                 busbar-admin, when the upstream's latest release is newer than the formula's
+#                 version, recompute the release asset sha256s, rewrite the formula and push main
+#                 with a bypass-capable token. Secret HOMEBREW_BUSBAR_PUSH_TOKEN (scope: repo
+#                 GetBusbar/homebrew-busbar, check formula-bump). Never name it under `move`.
+#                 Without the token a run still resolves and rewrites in its scratch checkout
+#                 (a dry run) and then fails on purpose.
+to: main
+on:
+  move: [formulae-present]
+  schedule:
+  - cron: "29 7 * * *"
+    checks: [formula-bump]
+  upstream:
+  - from: GetBusbar/busbar@v*
+    checks: [formula-bump]
+  manual: [formula-bump]
+checks:
+  formulae-present:
+    run: test -f Formula/busbar.rb
+  formula-bump:
+    requires: [git, curl, jq, python3]
+    run: |
+      set -euo pipefail
+      T="${HOMEBREW_BUSBAR_PUSH_TOKEN:-}"
+      AUTH=(); [ -n "$T" ] && AUTH=(-H "Authorization: Bearer $T")
+      sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1" | awk '{print $1}'; else shasum -a 256 "$1" | awk '{print $1}'; fi; }
+      bump() { # upstream formula assets-with-ver(yes|no) names...
+        local up="$1" formula="$2" prefix="$3"; shift 3
+        [ -f "$formula" ] || { echo "no $formula yet"; return 0; }
+        local tag ver cur
+        tag="$(curl -fsSL "${AUTH[@]}" "https://api.github.com/repos/$up/releases/latest" 2>/dev/null | jq -r '.tag_name // empty' || true)"
+        [ -n "$tag" ] || { echo "$up has no releases yet"; return 0; }
+        ver="${tag#v}"
+        cur="$(grep -E '^\s*version "' "$formula" | head -1 | sed -E 's/.*version "([^"]+)".*/\1/')"
+        echo "$formula current=$cur latest=$ver"
+        if [ "$ver" = "$cur" ] || [ "$(printf '%s\n%s\n' "$cur" "$ver" | sort -V | tail -1)" != "$ver" ]; then echo "$formula already current"; return 0; fi
+        local tmp shas=() n t
+        tmp="$(mktemp -d)"
+        for t in "$@"; do
+          n="${prefix//@VER@/$ver}$t"
+          curl -fsSL -o "$tmp/$n" "https://github.com/$up/releases/download/$tag/$n"
+          shas+=("$(sha256 "$tmp/$n")")
+        done
+        sed -i -E "s/^(\s*version \")[^\"]+(\")/\1${ver}\2/" "$formula"
+        python3 .github/scripts/set_shas.py "$formula" "${shas[@]}"
+      }
+      bump GetBusbar/busbar Formula/busbar.rb "busbar-" aarch64-apple-darwin.tar.gz x86_64-apple-darwin.tar.gz aarch64-unknown-linux-gnu.tar.gz x86_64-unknown-linux-gnu.tar.gz
+      bump GetBusbar/busbar-admin Formula/busbar-admin.rb "busbar-admin-v@VER@-" aarch64-apple-darwin.tar.gz x86_64-apple-darwin.tar.gz x86_64-unknown-linux-gnu.tar.gz
+      if git diff --quiet; then echo "no changes"; exit 0; fi
+      git add Formula/
+      git -c user.name=busbar-bot -c user.email=bot@getbusbar.com commit -q -m "release: bump formulae to latest upstream releases (version + sha256s)"
+      git --no-pager show --stat --oneline HEAD
+      if [ -z "$T" ]; then
+        echo "DRY RUN OK: HOMEBREW_BUSBAR_PUSH_TOKEN is not set, so main was not pushed (a scheduled run has it)"; exit 1
+      fi
+      B64="$(printf 'x-access-token:%s' "$T" | base64 | tr -d '\n')"
+      git -c "http.https://github.com/.extraheader=Authorization: basic $B64" push https://github.com/GetBusbar/homebrew-busbar.git HEAD:refs/heads/main
+env:
+  CI: 'true'
