@@ -1,5 +1,5 @@
-# Busbar — single static-binary LLM gateway (your AI control plane).
-# This formula installs the prebuilt, release-signed binary from GitHub Releases;
+# Busbar — single-binary LLM gateway (your AI control plane).
+# This formula installs the prebuilt release binary from GitHub Releases;
 # the .github/workflows/bump.yml workflow keeps the version + checksums current.
 class Busbar < Formula
   desc "Single-binary LLM gateway — one API in front of every model and provider"
