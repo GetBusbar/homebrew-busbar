@@ -28,4 +28,6 @@ The commands above verify the version currently selected by the tap.
 brew update && brew upgrade busbar
 ```
 
-The formula is kept current automatically: a scheduled workflow in this tap watches the upstream releases and bumps the version + checksums when a new one ships (see `.github/workflows/bump.yml`).
+Formula updates are maintained on the private GitLab repository and mirrored here.
+GitHub Actions is retired; the former scheduled bump workflow no longer runs.
+Version and checksum updates must refer to the approved release artifacts.

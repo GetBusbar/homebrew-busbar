@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 
-SCRIPT = Path(os.environ.get("SET_SHAS_SCRIPT", Path(__file__).resolve().parents[1] / ".github/scripts/set_shas.py"))
+SCRIPT = Path(os.environ.get("SET_SHAS_SCRIPT", Path(__file__).resolve().parents[1] / "scripts/ci/set_shas.py"))
 SOURCE = 'class Example < Formula\n  version "1.4.1"\n  sha256 "' + "a" * 64 + '"\nend\n'
 
 
