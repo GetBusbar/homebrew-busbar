@@ -4,8 +4,8 @@ import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-# Published tap commit 6c97aa59c6c845ffb682e004c6b9d16cbac63006.
-RELEASED = {"busbar": (1, 5, 5), "busbar-admin": (0, 2, 3)}
+# Published tap commits 6c97aa5 (busbar 1.5.5) and 3673c1f (busbar-admin 0.2.4) on main.
+RELEASED = {"busbar": (1, 5, 5), "busbar-admin": (0, 2, 4)}
 
 
 class ReleasedBaselineTests(unittest.TestCase):

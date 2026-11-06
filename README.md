@@ -22,10 +22,21 @@ gh attestation verify "$(brew --cache GetBusbar/busbar/busbar)" --repo GetBusbar
 Attestations cover the downloaded release archive, not the extracted executable.
 The commands above verify the version currently selected by the tap.
 
+## busbar-admin
+
+The tap also ships `busbar-admin`, the CLI for the gateway's admin API:
+
+```sh
+brew install busbar-admin
+```
+
+Prebuilt for macOS (Apple Silicon + Intel) and Linux x86_64; there is no Linux arm64 build.
+
 ## Upgrading
 
 ```sh
 brew update && brew upgrade busbar
+brew upgrade busbar-admin   # if installed
 ```
 
 Formula updates are maintained on the private GitLab repository and mirrored here.

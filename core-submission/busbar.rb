@@ -24,6 +24,7 @@ class Busbar < Formula
   end
 
   test do
-    assert_match "busbar #{version}", shell_output("#{bin}/busbar --version")
+    expected = version.head? ? "busbar " : "busbar #{version}"
+    assert_match expected, shell_output("#{bin}/busbar --version")
   end
 end
