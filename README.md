@@ -39,6 +39,5 @@ brew update && brew upgrade busbar
 brew upgrade busbar-admin   # if installed
 ```
 
-Formula updates are maintained on the private GitLab repository and mirrored here.
-GitHub Actions is retired; the former scheduled bump workflow no longer runs.
+Formula updates are maintained on the private Gitea repository and mirrored here.
 Version and checksum updates must refer to the approved release artifacts.
